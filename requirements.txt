@@ -3,3 +3,6 @@ torchvision
 numpy
 opencv-python
 psutil
+onnx
+onnxruntime
+albumentations
