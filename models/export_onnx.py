@@ -16,19 +16,21 @@ import torch.nn as nn
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from models.flood_model import UNetMobileNetV2, LightweightFloodSegmentation
+from models.flood_model import DeepLabV3Flood, UNetMobileNetV2, LightweightFloodSegmentation
 
 
-def export_onnx(model_path, output_path, input_size=512, use_lightweight=False):
+def export_onnx(model_path, output_path, input_size=512, model_type="deeplabv3"):
     device = torch.device("cpu")
 
-    if use_lightweight:
+    if model_type == "lightweight":
         model = LightweightFloodSegmentation()
-    else:
+    elif model_type == "unet":
         model = UNetMobileNetV2(num_classes=1)
+    else:
+        model = DeepLabV3Flood(num_classes=1, freeze_backbone=False)
 
     if model_path and os.path.exists(model_path):
-        checkpoint = torch.load(model_path, map_location=device, weights_only=True)
+        checkpoint = torch.load(model_path, map_location=device, weights_only=False)
         if "model_state_dict" in checkpoint:
             model.load_state_dict(checkpoint["model_state_dict"])
         else:
@@ -79,12 +81,14 @@ if __name__ == "__main__":
     parser.add_argument("--model", type=str, default=None, help="Path to .pth checkpoint")
     parser.add_argument("--output", type=str, default="checkpoints/flood_model.onnx")
     parser.add_argument("--input_size", type=int, default=512)
-    parser.add_argument("--lightweight", action="store_true", help="Export lightweight model")
+    parser.add_argument("--model_type", type=str, default="deeplabv3",
+                        choices=["deeplabv3", "unet", "lightweight"],
+                        help="Model architecture to export")
     parser.add_argument("--quantize", action="store_true", help="Also export INT8 quantized version")
     args = parser.parse_args()
 
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
-    export_onnx(args.model, args.output, args.input_size, args.lightweight)
+    export_onnx(args.model, args.output, args.input_size, args.model_type)
 
     if args.quantize:
         quant_path = args.output.replace(".onnx", "_int8.onnx")

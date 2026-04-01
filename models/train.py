@@ -133,11 +133,13 @@ def train(args):
 
     # Resume from checkpoint if provided
     start_epoch = 0
+    best_iou_from_ckpt = 0.0
     if args.resume and os.path.exists(args.resume):
-        checkpoint = torch.load(args.resume, map_location=device, weights_only=True)
+        checkpoint = torch.load(args.resume, map_location=device, weights_only=False)
         model.load_state_dict(checkpoint["model_state_dict"])
         start_epoch = checkpoint.get("epoch", 0) + 1
-        print(f"Resumed from epoch {start_epoch}")
+        best_iou_from_ckpt = checkpoint.get("best_iou", 0.0)
+        print(f"Resumed from epoch {start_epoch} (prev best IoU: {best_iou_from_ckpt:.4f})")
 
     # Loss, optimizer, scheduler
     criterion = CombinedLoss(bce_weight=0.3, dice_weight=0.5, focal_weight=0.2)
@@ -150,7 +152,7 @@ def train(args):
 
     # Training loop
     os.makedirs(args.output_dir, exist_ok=True)
-    best_iou = 0.0
+    best_iou = best_iou_from_ckpt
     history = []
 
     print(f"\nStarting training for {args.epochs} epochs")
