@@ -29,7 +29,7 @@ import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from models.flood_model import UNetMobileNetV2, DeepLabV3Flood
+from models.flood_model import build_model
 from models.dataset import FloodDataset
 from models.losses import CombinedLoss
 from models.evaluate import compute_metrics
@@ -124,19 +124,15 @@ def train(args):
     )
 
     # Model selection
-    if args.model == "deeplabv3":
-        model = DeepLabV3Flood(num_classes=1, freeze_backbone=args.freeze_backbone).to(device)
-        print(f"Using DeepLabV3 (COCO-pretrained, backbone frozen={args.freeze_backbone})")
-    else:
-        model = UNetMobileNetV2(num_classes=1).to(device)
-        print("Using UNetMobileNetV2")
+    model = build_model(device=device)
+    print("Using smp.Unet (ResNet50 encoder)")
 
     # Resume from checkpoint if provided
     start_epoch = 0
     best_iou_from_ckpt = 0.0
     if args.resume and os.path.exists(args.resume):
         checkpoint = torch.load(args.resume, map_location=device, weights_only=False)
-        model.load_state_dict(checkpoint["model_state_dict"])
+        model.load_state_dict(checkpoint["model_state"])
         start_epoch = checkpoint.get("epoch", 0) + 1
         best_iou_from_ckpt = checkpoint.get("best_iou", 0.0)
         print(f"Resumed from epoch {start_epoch} (prev best IoU: {best_iou_from_ckpt:.4f})")
@@ -226,10 +222,8 @@ if __name__ == "__main__":
     parser.add_argument("--input_size", type=int, default=512)
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint to resume from")
-    parser.add_argument("--model", type=str, default="deeplabv3", choices=["deeplabv3", "unet"],
-                        help="Model architecture (default: deeplabv3)")
-    parser.add_argument("--freeze_backbone", action="store_true",
-                        help="Freeze backbone (train only classifier head)")
+    parser.add_argument("--model", type=str, default="unet",
+                        help="Model architecture (currently: smp.Unet with ResNet50 encoder)")
     args = parser.parse_args()
 
     train(args)
