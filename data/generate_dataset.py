@@ -102,16 +102,22 @@ def tile_bbox(x, y, zoom):
 
 
 def lat_lon_to_pixel(lat, lon, tile_x, tile_y, zoom, tile_size=256):
-    """Convert lat/lon to pixel coordinates within a specific tile."""
+    """Convert lat/lon to pixel coordinates within a specific tile.
+    
+    Always uses TILE_SIZE (256) for the projection math since tiles are 256px,
+    then scales to tile_size for the output canvas.
+    """
     n = 2 ** zoom
-    # Pixel coordinates in world space
-    world_px_x = (lon + 180.0) / 360.0 * n * tile_size
+    # Pixel coordinates in world space at native tile size (256)
+    world_px_x = (lon + 180.0) / 360.0 * n * TILE_SIZE
     lat_rad = math.radians(lat)
-    world_px_y = (1.0 - math.asinh(math.tan(lat_rad)) / math.pi) / 2.0 * n * tile_size
-    # Tile-local pixel coordinates
-    px = world_px_x - tile_x * tile_size
-    py = world_px_y - tile_y * tile_size
-    return px, py
+    world_px_y = (1.0 - math.asinh(math.tan(lat_rad)) / math.pi) / 2.0 * n * TILE_SIZE
+    # Tile-local pixel coordinates at native resolution
+    px = world_px_x - tile_x * TILE_SIZE
+    py = world_px_y - tile_y * TILE_SIZE
+    # Scale to output canvas size
+    scale = tile_size / TILE_SIZE
+    return px * scale, py * scale
 
 
 def query_water_bodies(bbox, max_results=30):
@@ -225,7 +231,10 @@ def process_region(region_cfg, session, target_per_region, output_size):
     time.sleep(0.3)  # Rate limiting
 
     if not elements:
+        print(f"    [{label}] No OSM elements returned, skipping.")
         return []
+
+    print(f"    [{label}] Got {len(elements)} OSM elements")
 
     # Find all tiles within the bbox that have water
     x_min, y_max = lat_lon_to_tile(min_lat, min_lon, zoom)  # note y is inverted
@@ -251,7 +260,7 @@ def process_region(region_cfg, session, target_per_region, output_size):
         water_pct = (mask > 127).mean()
 
         # Skip tiles with very little or no water in OSM data
-        if water_pct < 0.03:
+        if water_pct < 0.01:
             continue
 
         # Download the satellite tile
